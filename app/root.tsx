@@ -2,6 +2,7 @@ import {
   isRouteErrorResponse,
   Links,
   Meta,
+  NavLink,
   Outlet,
   Scripts,
   ScrollRestoration,
@@ -32,8 +33,28 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Meta />
         <Links />
       </head>
-      <body>
-        {children}
+      <body className="min-h-screen bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-100 font-sans transition-colors">
+        <nav className="border-b border-gray-200 dark:border-gray-800 sticky top-0 bg-white/80 dark:bg-gray-950/80 backdrop-blur-md z-50">
+          <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+            <NavLink to="/" className="text-xl font-bold tracking-tight hover:text-blue-600 transition">
+              grc-compil
+            </NavLink>
+            <div className="flex gap-6 items-center">
+              <NavLink to="/" className={({ isActive }) => `text-sm font-medium transition ${isActive ? 'text-blue-600' : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100'}`}>
+                Home
+              </NavLink>
+              <NavLink to="/about" className={({ isActive }) => `text-sm font-medium transition ${isActive ? 'text-blue-600' : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100'}`}>
+                About
+              </NavLink>
+              <NavLink to="/contact" className={({ isActive }) => `text-sm font-medium transition ${isActive ? 'text-blue-600' : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100'}`}>
+                Contact
+              </NavLink>
+            </div>
+          </div>
+        </nav>
+        <main className="container mx-auto px-4 py-8">
+          {children}
+        </main>
         <ScrollRestoration />
         <Scripts />
       </body>
