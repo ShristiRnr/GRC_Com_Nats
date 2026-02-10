@@ -1,7 +1,26 @@
-.DS_Store
-.env
-/node_modules/
+# Environment variables
+backend/app.env
 
-# React Router
-/.react-router/
-/build/
+# Dependencies
+node_modules/
+dist/
+.env
+
+# Go binaries
+backend/api
+backend/worker
+backend/migrate
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker data
+postgres_data/
+
+# Frontend specific
+frontend/.git/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.react-router/

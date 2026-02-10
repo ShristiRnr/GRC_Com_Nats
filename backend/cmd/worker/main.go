@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"grc-compil/backend/internal/broker"
 	"grc-compil/backend/internal/config"
+	"grc-compil/backend/internal/service/email"
 	"grc-compil/backend/internal/worker/processor"
 )
 
@@ -31,7 +32,17 @@ func main() {
 	}
 	defer natsBroker.Close()
 
-	p := processor.NewProcessor(connPool, natsBroker)
+	emailService := email.NewEmailService(
+		cfg.SMTPHost,
+		cfg.SMTPPort,
+		cfg.SMTPUsername,
+		cfg.SMTPPassword,
+		cfg.SMTPFromEmail,
+		cfg.SMTPFromName,
+		cfg.FrontendURL,
+	)
+
+	p := processor.NewProcessor(connPool, natsBroker, emailService)
 	p.Start()
 
 	log.Println("Worker started and listening for events...")

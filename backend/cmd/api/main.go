@@ -29,7 +29,7 @@ func main() {
 	}
 	defer natsBroker.Close()
 
-	r := router.SetupRouter(connPool, natsBroker)
+	r := router.SetupRouter(connPool, natsBroker, cfg)
 
 	log.Printf("Starting API server on %s", cfg.ServerAddr)
 	if err := http.ListenAndServe(cfg.ServerAddr, r); err != nil {

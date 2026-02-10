@@ -3,12 +3,18 @@ package handler
 import (
 	"net/http"
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"grc-compil/backend/internal/broker"
+	"grc-compil/backend/internal/api/middleware"
+	"grc-compil/backend/internal/service"
 )
 
-func CreateTask(db *pgxpool.Pool, b *broker.Broker) gin.HandlerFunc {
+func CreateTask(taskService service.TaskService) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		userPayload := middleware.GetUserContext(c)
+		if userPayload == nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+
 		var req struct {
 			Title   string                 `json:"title"`
 			Payload map[string]interface{} `json:"payload"`
@@ -19,10 +25,9 @@ func CreateTask(db *pgxpool.Pool, b *broker.Broker) gin.HandlerFunc {
 			return
 		}
 
-		// Emit event to NATS
-		err := b.Publish("tasks.created", req)
+		err := taskService.CreateTask(c.Request.Context(), userPayload, req.Title, req.Payload)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to publish event"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create task"})
 			return
 		}
 

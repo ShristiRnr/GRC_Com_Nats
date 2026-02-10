@@ -1,4 +1,5 @@
 import type { Route } from "./+types/home";
+import { api } from "../lib/api";
 
 export function meta({ }: Route.MetaArgs) {
   return [
@@ -32,12 +33,15 @@ export default function Home() {
           >
             Explore the Docs
           </a>
-          <a
-            href="/contact"
+          <button
+            onClick={async () => {
+              await api.logout();
+              window.location.href = "/login";
+            }}
             className="px-8 py-4 bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-bold rounded-2xl border border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-all hover:-translate-y-1 active:scale-95"
           >
-            Get a Demo
-          </a>
+            Sign Out
+          </button>
         </div>
       </div>
 
