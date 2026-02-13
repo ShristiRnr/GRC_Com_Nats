@@ -9,9 +9,11 @@ RUN pnpm config set fetch-timeout 600000
 RUN pnpm config set registry https://registry.npmjs.org/
 
 FROM base AS build
-COPY . /app
 WORKDIR /app
-RUN pnpm install --frozen-lockfile
+COPY package.json pnpm-lock.yaml ./
+# Use non-frozen lockfile as local pnpm might be different version than container
+RUN pnpm install
+COPY . .
 RUN pnpm run build
 
 FROM base AS runtime

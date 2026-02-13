@@ -19,13 +19,17 @@ function onRefreshed(res: boolean) {
 }
 
 export async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
+    const headers = new Headers(options.headers);
+
+    // Only set Content-Type if it's not already set AND body is not FormData
+    if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
+        headers.set('Content-Type', 'application/json');
+    }
+
     const response = await fetch(url, {
         ...options,
         credentials: 'include',
-        headers: {
-            'Content-Type': 'application/json',
-            ...options.headers,
-        },
+        headers: headers,
     });
 
     if (response.status === 401 && !url.includes('/auth/login') && !url.includes('/auth/refresh')) {
@@ -65,7 +69,7 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}): Pro
 
 export const api = {
     getMe: () => fetchWithAuth('/auth/me'),
-    login: (credentials: any) => fetchWithAuth('/auth/login', {
+    login: (credentials: { username: string; password: string }) => fetchWithAuth('/auth/login', {
         method: 'POST',
         body: JSON.stringify(credentials),
     }),
