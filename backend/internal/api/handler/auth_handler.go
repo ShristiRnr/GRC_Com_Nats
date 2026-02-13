@@ -4,9 +4,10 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/gin-gonic/gin"
 	"grc-compil/backend/internal/api/middleware"
 	"grc-compil/backend/internal/service/auth"
+
+	"github.com/gin-gonic/gin"
 )
 
 const (
@@ -16,8 +17,9 @@ const (
 func Login(service auth.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req struct {
-			Username string `json:"username" binding:"required"`
-			Password string `json:"password" binding:"required"`
+			Username   string `json:"username"`
+			Identifier string `json:"identifier"`
+			Password   string `json:"password" binding:"required"`
 		}
 
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -25,11 +27,22 @@ func Login(service auth.AuthService) gin.HandlerFunc {
 			return
 		}
 
+		// Support both 'username' and 'identifier' fields for robustness
+		loginID := req.Username
+		if loginID == "" {
+			loginID = req.Identifier
+		}
+
+		if loginID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "username or email is required"})
+			return
+		}
+
 		res, err := service.Login(
-			c.Request.Context(), 
-			req.Username, 
-			req.Password, 
-			c.Request.UserAgent(), 
+			c.Request.Context(),
+			loginID,
+			req.Password,
+			c.Request.UserAgent(),
 			c.ClientIP(),
 		)
 		if err != nil {
@@ -39,17 +52,17 @@ func Login(service auth.AuthService) gin.HandlerFunc {
 
 		// Set Access Token Cookie
 		c.SetCookie(
-			middleware.AccessTokenCookie, 
-			res.AccessToken, 
-			int(res.AccessTokenPayload.ExpiresAt.Sub(res.AccessTokenPayload.IssuedAt.Time).Seconds()), 
+			middleware.AccessTokenCookie,
+			res.AccessToken,
+			int(res.AccessTokenPayload.ExpiresAt.Sub(res.AccessTokenPayload.IssuedAt.Time).Seconds()),
 			"/", "", true, true,
 		)
 
 		// Set Refresh Token Cookie
 		c.SetCookie(
-			RefreshTokenCookie, 
-			res.RefreshToken, 
-			int(res.RefreshTokenPayload.ExpiresAt.Sub(res.RefreshTokenPayload.IssuedAt.Time).Seconds()), 
+			RefreshTokenCookie,
+			res.RefreshToken,
+			int(res.RefreshTokenPayload.ExpiresAt.Sub(res.RefreshTokenPayload.IssuedAt.Time).Seconds()),
 			"/auth/refresh", "", true, true,
 		)
 
@@ -68,9 +81,9 @@ func Refresh(service auth.AuthService) gin.HandlerFunc {
 		}
 
 		res, err := service.Refresh(
-			c.Request.Context(), 
-			refreshToken, 
-			c.Request.UserAgent(), 
+			c.Request.Context(),
+			refreshToken,
+			c.Request.UserAgent(),
 			c.ClientIP(),
 		)
 		if err != nil {
@@ -80,9 +93,9 @@ func Refresh(service auth.AuthService) gin.HandlerFunc {
 
 		// Set New Access Token Cookie
 		c.SetCookie(
-			middleware.AccessTokenCookie, 
-			res.AccessToken, 
-			int(res.AccessTokenPayload.ExpiresAt.Sub(res.AccessTokenPayload.IssuedAt.Time).Seconds()), 
+			middleware.AccessTokenCookie,
+			res.AccessToken,
+			int(res.AccessTokenPayload.ExpiresAt.Sub(res.AccessTokenPayload.IssuedAt.Time).Seconds()),
 			"/", "", true, true,
 		)
 
@@ -107,7 +120,7 @@ func Me(service auth.AuthService) gin.HandlerFunc {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return
 		}
-		
+
 		userID, err := strconv.ParseInt(payload.UserID, 10, 64)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user id in token"})
@@ -117,6 +130,11 @@ func Me(service auth.AuthService) gin.HandlerFunc {
 		user, err := service.Me(c.Request.Context(), userID)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+			return
+		}
+
+		if !user.EmailVerified {
+			c.JSON(http.StatusForbidden, gin.H{"error": "email not verified"})
 			return
 		}
 

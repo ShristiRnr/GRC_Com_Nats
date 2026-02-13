@@ -8,6 +8,8 @@ dist/
 
 # Go binaries
 backend/api
+backend/api.exe
+*.exe
 backend/worker
 backend/migrate
 

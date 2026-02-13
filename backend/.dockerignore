@@ -1,0 +1,13 @@
+api
+api.exe
+worker
+worker.exe
+migrate
+migrate.tar.gz
+.git
+.idea
+.vscode
+*.log
+tmp
+bin
+obj

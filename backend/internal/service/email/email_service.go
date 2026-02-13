@@ -44,8 +44,8 @@ func NewEmailService(
 }
 
 func (s *emailService) SendVerificationEmail(to, username, token string) error {
-	// Simplified URL without the "/verify-email/" prefix to go straight to login
-	verifyURL := fmt.Sprintf("%s/login?token=%s", s.frontendURL, token)
+	// Verify URL pointing to the dedicated verification route
+	verifyURL := fmt.Sprintf("%s/verify-email/%s", s.frontendURL, token)
 	
 	subject := "Verify Your Email - GRC Compliance"
 	htmlBody := s.getVerificationEmailHTML(username, verifyURL)

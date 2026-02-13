@@ -7,12 +7,13 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgtype"
 	"grc-compil/backend/internal/broker"
 	db "grc-compil/backend/internal/db/sqlc"
 	"grc-compil/backend/internal/service/auth"
 	"grc-compil/backend/internal/util"
+
+	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const (
@@ -36,7 +37,7 @@ func GetSetupStatus(store db.Querier) gin.HandlerFunc {
 }
 
 // SetupSuperAdmin creates the super admin user (only works if setup not completed)
-func SetupSuperAdmin(store db.Querier, authService auth.AuthService) gin.HandlerFunc {
+func SetupSuperAdmin(store db.Querier, authService auth.AuthService, b *broker.Broker) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req struct {
 			Username string `json:"username" binding:"required,min=3"`
@@ -50,23 +51,73 @@ func SetupSuperAdmin(store db.Querier, authService auth.AuthService) gin.Handler
 			return
 		}
 
-		// Check if setup already completed
+		// Check if setup already completed (only true after email verification)
 		config, err := store.GetSystemConfig(c.Request.Context(), SystemSetupCompletedKey)
 		if err == nil && config.Value == "true" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "System setup already completed"})
 			return
 		}
 
-		// Check if username or email already exists
-		_, err = store.GetUserByUsername(c.Request.Context(), req.Username)
+		// Check if username already exists
+		existingUser, err := store.GetUserByUsername(c.Request.Context(), req.Username)
 		if err == nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Username already taken"})
+			// User exists — check if they are unverified, and resend the verification email
+			if !existingUser.EmailVerified {
+				// Generate a fresh verification token and resend
+				token := generateToken()
+				expiresAt := time.Now().Add(24 * time.Hour)
+				_, _ = store.UpdateVerificationToken(c.Request.Context(), db.UpdateVerificationTokenParams{
+					VerificationToken:          pgtype.Text{String: token, Valid: true},
+					VerificationTokenExpiresAt: pgtype.Timestamptz{Time: expiresAt, Valid: true},
+					ID:                         existingUser.ID,
+				})
+				emailPayload := map[string]interface{}{
+					"type":     "verification",
+					"to":       existingUser.Email,
+					"username": existingUser.Username,
+					"token":    token,
+				}
+				_ = b.Publish("email.send", emailPayload)
+
+				c.JSON(http.StatusOK, gin.H{
+					"message":              "A verification email has already been sent to this account. We have resent a fresh activation link.",
+					"verification_pending": true,
+					"email":                existingUser.Email,
+				})
+				return
+			}
+			// User exists and is verified — setup is effectively done
+			c.JSON(http.StatusBadRequest, gin.H{"error": "System setup already completed"})
 			return
 		}
 
-		_, err = store.GetUserByEmail(c.Request.Context(), req.Email)
+		// Check if email already exists
+		existingByEmail, err := store.GetUserByEmail(c.Request.Context(), req.Email)
 		if err == nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Email already registered"})
+			if !existingByEmail.EmailVerified {
+				token := generateToken()
+				expiresAt := time.Now().Add(24 * time.Hour)
+				_, _ = store.UpdateVerificationToken(c.Request.Context(), db.UpdateVerificationTokenParams{
+					VerificationToken:          pgtype.Text{String: token, Valid: true},
+					VerificationTokenExpiresAt: pgtype.Timestamptz{Time: expiresAt, Valid: true},
+					ID:                         existingByEmail.ID,
+				})
+				emailPayload := map[string]interface{}{
+					"type":     "verification",
+					"to":       existingByEmail.Email,
+					"username": existingByEmail.Username,
+					"token":    token,
+				}
+				_ = b.Publish("email.send", emailPayload)
+
+				c.JSON(http.StatusOK, gin.H{
+					"message":              "A verification email has already been sent to this account. We have resent a fresh activation link.",
+					"verification_pending": true,
+					"email":                existingByEmail.Email,
+				})
+				return
+			}
+			c.JSON(http.StatusBadRequest, gin.H{"error": "System setup already completed"})
 			return
 		}
 
@@ -77,6 +128,10 @@ func SetupSuperAdmin(store db.Querier, authService auth.AuthService) gin.Handler
 			return
 		}
 
+		// Generate verification token
+		token := generateToken()
+		expiresAt := time.Now().Add(24 * time.Hour)
+
 		// Create organization
 		org, err := store.CreateOrganization(c.Request.Context(), req.OrgName)
 		if err != nil {
@@ -85,16 +140,16 @@ func SetupSuperAdmin(store db.Querier, authService auth.AuthService) gin.Handler
 			return
 		}
 
-		// Create super admin user with email already verified
+		// Create super admin user with verification token (email NOT verified yet)
 		user, err := store.CreateUserWithVerification(c.Request.Context(), db.CreateUserWithVerificationParams{
 			Username:                   req.Username,
 			Email:                      req.Email,
 			OrgID:                      org.ID,
 			PasswordHash:               hashedPassword,
 			Role:                       "super_admin",
-			EmailVerified:              true,
-			VerificationToken:          pgtype.Text{Valid: false},
-			VerificationTokenExpiresAt: pgtype.Timestamptz{Valid: false},
+			EmailVerified:              false,
+			VerificationToken:          pgtype.Text{String: token, Valid: true},
+			VerificationTokenExpiresAt: pgtype.Timestamptz{Time: expiresAt, Valid: true},
 		})
 		if err != nil {
 			log.Printf("failed to create super admin user: %v", err)
@@ -102,19 +157,22 @@ func SetupSuperAdmin(store db.Querier, authService auth.AuthService) gin.Handler
 			return
 		}
 
-		// Mark setup as completed
-		_, err = store.SetSystemConfig(c.Request.Context(), db.SetSystemConfigParams{
-			Key:   SystemSetupCompletedKey,
-			Value: "true",
-		})
+		// DO NOT mark setup as completed here — it will be set when email is verified
+
+		// Send verification email via NATS
+		emailPayload := map[string]interface{}{
+			"type":     "verification",
+			"to":       user.Email,
+			"username": user.Username,
+			"token":    token,
+		}
+		err = b.Publish("email.send", emailPayload)
 		if err != nil {
-			log.Printf("failed to set system config: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to complete setup"})
-			return
+			log.Printf("failed to publish verification email to NATS: %v", err)
 		}
 
 		c.JSON(http.StatusOK, gin.H{
-			"message": "Super admin created successfully",
+			"message": "Super admin created successfully. Please check your email for verification.",
 			"user": gin.H{
 				"id":       user.ID,
 				"username": user.Username,
@@ -174,13 +232,13 @@ func Signup(store db.Querier, b *broker.Broker) gin.HandlerFunc {
 
 		// Create user with verification token
 		user, err := store.CreateUserWithVerification(c.Request.Context(), db.CreateUserWithVerificationParams{
-			Username:                  req.Username,
-			Email:                     req.Email,
-			OrgID:                     orgs[0].ID,
-			PasswordHash:              hashedPassword,
-			Role:                      "user",
-			EmailVerified:             false,
-			VerificationToken:         pgtype.Text{String: token, Valid: true},
+			Username:                   req.Username,
+			Email:                      req.Email,
+			OrgID:                      orgs[0].ID,
+			PasswordHash:               hashedPassword,
+			Role:                       "user",
+			EmailVerified:              false,
+			VerificationToken:          pgtype.Text{String: token, Valid: true},
 			VerificationTokenExpiresAt: pgtype.Timestamptz{Time: expiresAt, Valid: true},
 		})
 		if err != nil {
@@ -204,7 +262,7 @@ func Signup(store db.Querier, b *broker.Broker) gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "User created successfully! Please check your email for verification.",
 		})
-		return
+
 	}
 }
 
@@ -222,6 +280,17 @@ func VerifyEmail(store db.Querier, b *broker.Broker) gin.HandlerFunc {
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid or expired verification token"})
 			return
+		}
+
+		// If the verified user is a super_admin, mark system setup as completed
+		if user.Role == "super_admin" {
+			_, err = store.SetSystemConfig(c.Request.Context(), db.SetSystemConfigParams{
+				Key:   SystemSetupCompletedKey,
+				Value: "true",
+			})
+			if err != nil {
+				log.Printf("failed to set system config after super_admin verification: %v", err)
+			}
 		}
 
 		// Send welcome email via NATS
@@ -273,9 +342,9 @@ func ResendVerification(store db.Querier, b *broker.Broker) gin.HandlerFunc {
 
 		// Update verification token
 		_, err = store.UpdateVerificationToken(c.Request.Context(), db.UpdateVerificationTokenParams{
-			VerificationToken:         pgtype.Text{String: token, Valid: true},
+			VerificationToken:          pgtype.Text{String: token, Valid: true},
 			VerificationTokenExpiresAt: pgtype.Timestamptz{Time: expiresAt, Valid: true},
-			ID:                        user.ID,
+			ID:                         user.ID,
 		})
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update verification token"})

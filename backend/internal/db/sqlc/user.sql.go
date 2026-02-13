@@ -11,34 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createTask = `-- name: CreateTask :one
-INSERT INTO tasks (title, payload, org_id)
-VALUES ($1, $2, $3)
-RETURNING id, title, status, payload, result, created_at, updated_at, org_id
-`
-
-type CreateTaskParams struct {
-	Title   string      `json:"title"`
-	Payload []byte      `json:"payload"`
-	OrgID   pgtype.UUID `json:"org_id"`
-}
-
-func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error) {
-	row := q.db.QueryRow(ctx, createTask, arg.Title, arg.Payload, arg.OrgID)
-	var i Task
-	err := row.Scan(
-		&i.ID,
-		&i.Title,
-		&i.Status,
-		&i.Payload,
-		&i.Result,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.OrgID,
-	)
-	return i, err
-}
-
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (username, email, org_id, password_hash, role)
 VALUES ($1, $2, $3, $4, $5)
@@ -212,30 +184,31 @@ func (q *Queries) GetUserByVerificationToken(ctx context.Context, verificationTo
 	return i, err
 }
 
-const listTasksByOrg = `-- name: ListTasksByOrg :many
-SELECT id, title, status, payload, result, created_at, updated_at, org_id FROM tasks
-WHERE org_id = $1
-ORDER BY created_at DESC
+const listUsers = `-- name: ListUsers :many
+SELECT id, username, email, created_at, org_id, password_hash, role, email_verified, verification_token, verification_token_expires_at FROM users
+ORDER BY username
 `
 
-func (q *Queries) ListTasksByOrg(ctx context.Context, orgID pgtype.UUID) ([]Task, error) {
-	rows, err := q.db.Query(ctx, listTasksByOrg, orgID)
+func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
+	rows, err := q.db.Query(ctx, listUsers)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Task
+	var items []User
 	for rows.Next() {
-		var i Task
+		var i User
 		if err := rows.Scan(
 			&i.ID,
-			&i.Title,
-			&i.Status,
-			&i.Payload,
-			&i.Result,
+			&i.Username,
+			&i.Email,
 			&i.CreatedAt,
-			&i.UpdatedAt,
 			&i.OrgID,
+			&i.PasswordHash,
+			&i.Role,
+			&i.EmailVerified,
+			&i.VerificationToken,
+			&i.VerificationTokenExpiresAt,
 		); err != nil {
 			return nil, err
 		}
@@ -282,41 +255,6 @@ func (q *Queries) ListUsersByOrg(ctx context.Context, orgID pgtype.UUID) ([]User
 		return nil, err
 	}
 	return items, nil
-}
-
-const updateTaskStatus = `-- name: UpdateTaskStatus :one
-UPDATE tasks
-SET status = $2, result = $3, updated_at = CURRENT_TIMESTAMP
-WHERE id = $1 AND org_id = $4
-RETURNING id, title, status, payload, result, created_at, updated_at, org_id
-`
-
-type UpdateTaskStatusParams struct {
-	ID     int64       `json:"id"`
-	Status string      `json:"status"`
-	Result []byte      `json:"result"`
-	OrgID  pgtype.UUID `json:"org_id"`
-}
-
-func (q *Queries) UpdateTaskStatus(ctx context.Context, arg UpdateTaskStatusParams) (Task, error) {
-	row := q.db.QueryRow(ctx, updateTaskStatus,
-		arg.ID,
-		arg.Status,
-		arg.Result,
-		arg.OrgID,
-	)
-	var i Task
-	err := row.Scan(
-		&i.ID,
-		&i.Title,
-		&i.Status,
-		&i.Payload,
-		&i.Result,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.OrgID,
-	)
-	return i, err
 }
 
 const updateVerificationToken = `-- name: UpdateVerificationToken :one

@@ -56,10 +56,15 @@ func NewAuthService(
 	}
 }
 
-func (s *authService) Login(ctx context.Context, username, password string, userAgent, clientIP string) (*LoginResponse, error) {
-	user, err := s.store.GetUserByUsername(ctx, username)
+func (s *authService) Login(ctx context.Context, identifier, password string, userAgent, clientIP string) (*LoginResponse, error) {
+	// Try lookup by username first
+	user, err := s.store.GetUserByUsername(ctx, identifier)
 	if err != nil {
-		return nil, ErrInvalidCredentials
+		// If username fails, try lookup by email
+		user, err = s.store.GetUserByEmail(ctx, identifier)
+		if err != nil {
+			return nil, ErrInvalidCredentials
+		}
 	}
 
 	err = util.CheckPassword(password, user.PasswordHash)

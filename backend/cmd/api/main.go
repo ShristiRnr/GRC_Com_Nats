@@ -5,10 +5,12 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"grc-compil/backend/internal/api/router"
 	"grc-compil/backend/internal/broker"
 	"grc-compil/backend/internal/config"
+	db "grc-compil/backend/internal/db/sqlc"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
@@ -17,19 +19,30 @@ func main() {
 		log.Fatalf("cannot load config: %v", err)
 	}
 
+	var store db.Querier
+
+	// Connect to DB
 	connPool, err := pgxpool.New(context.Background(), cfg.DBURL)
 	if err != nil {
-		log.Fatalf("cannot connect to db: %v", err)
+		log.Fatalf("Cannot create DB pool: %v", err)
 	}
+
+	if err := connPool.Ping(context.Background()); err != nil {
+		log.Fatalf("Cannot connect to DB: %v", err)
+	}
+
+	log.Println("Connected to Database successfully")
+	store = db.New(connPool)
 	defer connPool.Close()
 
 	natsBroker, err := broker.NewNATSBroker(cfg.NATSURL)
 	if err != nil {
-		log.Fatalf("cannot connect to nats: %v", err)
+		// This should not happen with our resilient NewNATSBroker, but safety first
+		log.Printf("Warning: NATS setup failed: %v", err)
 	}
 	defer natsBroker.Close()
 
-	r := router.SetupRouter(connPool, natsBroker, cfg)
+	r := router.SetupRouter(store, natsBroker, cfg)
 
 	log.Printf("Starting API server on %s", cfg.ServerAddr)
 	if err := http.ListenAndServe(cfg.ServerAddr, r); err != nil {

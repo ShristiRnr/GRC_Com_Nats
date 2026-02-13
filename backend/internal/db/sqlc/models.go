@@ -8,10 +8,240 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Asset struct {
+	ID               pgtype.UUID        `json:"id"`
+	Name             string             `json:"name"`
+	Type             string             `json:"type"`
+	Description      pgtype.Text        `json:"description"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+	OrgID            pgtype.UUID        `json:"org_id"`
+	CategoryID       pgtype.UUID        `json:"category_id"`
+	TypeID           pgtype.UUID        `json:"type_id"`
+	DepartmentID     pgtype.UUID        `json:"department_id"`
+	Criticality      string             `json:"criticality"`
+	Confidentiality  int32              `json:"confidentiality"`
+	Integrity        int32              `json:"integrity"`
+	Availability     int32              `json:"availability"`
+	Status           string             `json:"status"`
+	Location         pgtype.Text        `json:"location"`
+	LifecycleStage   pgtype.Text        `json:"lifecycle_stage"`
+	ComplianceStatus pgtype.Text        `json:"compliance_status"`
+	IpAddress        pgtype.Text        `json:"ip_address"`
+	SerialNumber     pgtype.Text        `json:"serial_number"`
+	PurchaseDate     pgtype.Date        `json:"purchase_date"`
+	WarrantyExpiry   pgtype.Date        `json:"warranty_expiry"`
+	OwnerID          pgtype.UUID        `json:"owner_id"`
+}
+
+type AssetCategory struct {
+	ID          pgtype.UUID `json:"id"`
+	OrgID       pgtype.UUID `json:"org_id"`
+	Name        string      `json:"name"`
+	Description pgtype.Text `json:"description"`
+}
+
+type AssetControl struct {
+	ID                  pgtype.UUID        `json:"id"`
+	AssetID             pgtype.UUID        `json:"asset_id"`
+	ControlID           pgtype.UUID        `json:"control_id"`
+	CoverageStatus      pgtype.Text        `json:"coverage_status"`
+	ImplementationNotes pgtype.Text        `json:"implementation_notes"`
+	LastReviewedAt      pgtype.Timestamptz `json:"last_reviewed_at"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
+type AssetType struct {
+	ID          pgtype.UUID `json:"id"`
+	OrgID       pgtype.UUID `json:"org_id"`
+	Name        string      `json:"name"`
+	CategoryID  pgtype.UUID `json:"category_id"`
+	Description pgtype.Text `json:"description"`
+}
+
+type Control struct {
+	ID           pgtype.UUID        `json:"id"`
+	Code         string             `json:"code"`
+	Title        string             `json:"title"`
+	Description  pgtype.Text        `json:"description"`
+	Category     pgtype.Text        `json:"category"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	OrgID        pgtype.UUID        `json:"org_id"`
+	OwnerID      pgtype.UUID        `json:"owner_id"`
+	DepartmentID pgtype.UUID        `json:"department_id"`
+	DomainID     pgtype.UUID        `json:"domain_id"`
+}
+
+type ControlCategory struct {
+	ID          pgtype.UUID        `json:"id"`
+	OrgID       pgtype.UUID        `json:"org_id"`
+	Name        string             `json:"name"`
+	Description pgtype.Text        `json:"description"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type ControlDomain struct {
+	ID          pgtype.UUID        `json:"id"`
+	OrgID       pgtype.UUID        `json:"org_id"`
+	Name        string             `json:"name"`
+	Description pgtype.Text        `json:"description"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type ControlEvidence struct {
+	ID           pgtype.UUID        `json:"id"`
+	ControlID    pgtype.UUID        `json:"control_id"`
+	Name         string             `json:"name"`
+	Description  pgtype.Text        `json:"description"`
+	EvidenceType string             `json:"evidence_type"`
+	FileName     pgtype.Text        `json:"file_name"`
+	FilePath     pgtype.Text        `json:"file_path"`
+	FileSize     pgtype.Int4        `json:"file_size"`
+	MimeType     pgtype.Text        `json:"mime_type"`
+	ExternalUrl  pgtype.Text        `json:"external_url"`
+	Checksum     pgtype.Text        `json:"checksum"`
+	CollectedAt  pgtype.Timestamptz `json:"collected_at"`
+	IsValid      pgtype.Bool        `json:"is_valid"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
+type Department struct {
+	ID          pgtype.UUID        `json:"id"`
+	Name        string             `json:"name"`
+	Description pgtype.Text        `json:"description"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	OrgID       pgtype.UUID        `json:"org_id"`
+	HeadUserID  pgtype.UUID        `json:"head_user_id"`
+	ParentID    pgtype.UUID        `json:"parent_id"`
+	Email       pgtype.Text        `json:"email"`
+}
+
+type Evidence struct {
+	ID         pgtype.UUID        `json:"id"`
+	TaskID     pgtype.UUID        `json:"task_id"`
+	FilePath   string             `json:"file_path"`
+	FileName   string             `json:"file_name"`
+	Checksum   string             `json:"checksum"`
+	UploadedBy pgtype.UUID        `json:"uploaded_by"`
+	UploadedAt pgtype.Timestamptz `json:"uploaded_at"`
+}
+
+type Framework struct {
+	ID           pgtype.UUID        `json:"id"`
+	Name         string             `json:"name"`
+	Description  pgtype.Text        `json:"description"`
+	Version      pgtype.Text        `json:"version"`
+	Status       string             `json:"status"`
+	ControlCount pgtype.Int4        `json:"control_count"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	OrgID        pgtype.UUID        `json:"org_id"`
+}
+
+type FrameworkControl struct {
+	FrameworkID pgtype.UUID        `json:"framework_id"`
+	ControlID   pgtype.UUID        `json:"control_id"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
 type Organization struct {
 	ID        pgtype.UUID        `json:"id"`
 	Name      string             `json:"name"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type Policy struct {
+	ID           pgtype.UUID        `json:"id"`
+	OrgID        pgtype.UUID        `json:"org_id"`
+	Title        string             `json:"title"`
+	Status       string             `json:"status"`
+	Content      pgtype.Text        `json:"content"`
+	Version      pgtype.Text        `json:"version"`
+	LastReviewed pgtype.Timestamptz `json:"last_reviewed"`
+	NextReview   pgtype.Timestamptz `json:"next_review"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
+type PolicyClause struct {
+	ID        pgtype.UUID        `json:"id"`
+	PolicyID  pgtype.UUID        `json:"policy_id"`
+	ClauseID  string             `json:"clause_id"`
+	Content   pgtype.Text        `json:"content"`
+	ControlID pgtype.UUID        `json:"control_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type Profile struct {
+	ID        pgtype.UUID        `json:"id"`
+	OrgID     pgtype.UUID        `json:"org_id"`
+	Email     string             `json:"email"`
+	FullName  pgtype.Text        `json:"full_name"`
+	AvatarUrl pgtype.Text        `json:"avatar_url"`
+	JobTitle  pgtype.Text        `json:"job_title"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type Program struct {
+	ID          pgtype.UUID        `json:"id"`
+	Name        string             `json:"name"`
+	Description pgtype.Text        `json:"description"`
+	Type        string             `json:"type"`
+	Status      string             `json:"status"`
+	StartDate   pgtype.Timestamptz `json:"start_date"`
+	EndDate     pgtype.Timestamptz `json:"end_date"`
+	Progress    pgtype.Int4        `json:"progress"`
+	CreatedBy   pgtype.Int8        `json:"created_by"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ProgramFramework struct {
+	ID          pgtype.UUID        `json:"id"`
+	ProgramID   pgtype.UUID        `json:"program_id"`
+	FrameworkID pgtype.UUID        `json:"framework_id"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type ProgramScope struct {
+	ID           pgtype.UUID        `json:"id"`
+	ProgramID    pgtype.UUID        `json:"program_id"`
+	ResourceType string             `json:"resource_type"`
+	ResourceID   pgtype.UUID        `json:"resource_id"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+}
+
+type Risk struct {
+	ID                 pgtype.UUID        `json:"id"`
+	OrgID              pgtype.UUID        `json:"org_id"`
+	Title              string             `json:"title"`
+	Description        pgtype.Text        `json:"description"`
+	InherentImpact     int32              `json:"inherent_impact"`
+	InherentLikelihood int32              `json:"inherent_likelihood"`
+	ResidualImpact     pgtype.Int4        `json:"residual_impact"`
+	ResidualLikelihood pgtype.Int4        `json:"residual_likelihood"`
+	Status             string             `json:"status"`
+	TreatmentPlan      pgtype.Text        `json:"treatment_plan"`
+	OwnerID            pgtype.UUID        `json:"owner_id"`
+	SourceTaskID       pgtype.UUID        `json:"source_task_id"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	Category           pgtype.Text        `json:"category"`
+	ResponseStrategy   pgtype.Text        `json:"response_strategy"`
+	MitigationPlan     pgtype.Text        `json:"mitigation_plan"`
+	ReviewDate         pgtype.Date        `json:"review_date"`
+}
+
+type RiskControl struct {
+	RiskID        pgtype.UUID        `json:"risk_id"`
+	ControlID     pgtype.UUID        `json:"control_id"`
+	Effectiveness pgtype.Text        `json:"effectiveness"`
+	Notes         pgtype.Text        `json:"notes"`
+	MappedAt      pgtype.Timestamptz `json:"mapped_at"`
 }
 
 type Session struct {
@@ -33,14 +263,27 @@ type SystemConfig struct {
 }
 
 type Task struct {
-	ID        int64              `json:"id"`
-	Title     string             `json:"title"`
-	Status    string             `json:"status"`
-	Payload   []byte             `json:"payload"`
-	Result    []byte             `json:"result"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
-	OrgID     pgtype.UUID        `json:"org_id"`
+	ID                pgtype.UUID        `json:"id"`
+	ProgramID         pgtype.UUID        `json:"program_id"`
+	ControlID         pgtype.UUID        `json:"control_id"`
+	AssetID           pgtype.UUID        `json:"asset_id"`
+	OwnerID           pgtype.UUID        `json:"owner_id"`
+	ReviewerID        pgtype.UUID        `json:"reviewer_id"`
+	AssessorID        pgtype.UUID        `json:"assessor_id"`
+	Title             string             `json:"title"`
+	Description       pgtype.Text        `json:"description"`
+	Status            string             `json:"status"`
+	Result            pgtype.Text        `json:"result"`
+	DueDate           pgtype.Date        `json:"due_date"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	OrgID             pgtype.UUID        `json:"org_id"`
+	Notes             pgtype.Text        `json:"notes"`
+	ReviewerNotes     pgtype.Text        `json:"reviewer_notes"`
+	AssessorNotes     pgtype.Text        `json:"assessor_notes"`
+	VisibleToAssignee pgtype.Bool        `json:"visible_to_assignee"`
+	TaskType          pgtype.Text        `json:"task_type"`
+	EvidenceRequired  []byte             `json:"evidence_required"`
 }
 
 type User struct {
