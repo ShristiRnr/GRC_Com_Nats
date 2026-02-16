@@ -1,6 +1,8 @@
 package util
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 
 	"golang.org/x/crypto/bcrypt"
@@ -37,10 +39,15 @@ func CheckPasswordWithTimingProtection(password, hashedPassword string, dummyHas
 }
 
 // HashRefreshToken hashes a refresh token using bcrypt
+// Since refresh tokens can be longer than 72 bytes (bcrypt limit),
+// we hash them with SHA256 first to get a fixed length string.
 func HashRefreshToken(token string) (string, error) {
-	// For tokens, we can use DefaultCost as they are long-lived and high entropy already,
-	// but using the configured cost for consistency is also fine.
-	hashedToken, err := bcrypt.GenerateFromPassword([]byte(token), bcrypt.DefaultCost)
+	// 1. SHA256 hash the token to get a fixed 64-char hex string
+	shasum := sha256.Sum256([]byte(token))
+	tokenHash := hex.EncodeToString(shasum[:])
+
+	// 2. Bcrypt the SHA256 hash
+	hashedToken, err := bcrypt.GenerateFromPassword([]byte(tokenHash), bcrypt.DefaultCost)
 	if err != nil {
 		return "", fmt.Errorf("failed to hash refresh token: %w", err)
 	}
@@ -49,5 +56,10 @@ func HashRefreshToken(token string) (string, error) {
 
 // CheckRefreshToken checks if the provided refresh token matches the hash
 func CheckRefreshToken(token string, hashedToken string) error {
-	return bcrypt.CompareHashAndPassword([]byte(hashedToken), []byte(token))
+	// 1. SHA256 hash the input token
+	shasum := sha256.Sum256([]byte(token))
+	tokenHash := hex.EncodeToString(shasum[:])
+
+	// 2. Compare bcrypt hash with the SHA256 hash
+	return bcrypt.CompareHashAndPassword([]byte(hashedToken), []byte(tokenHash))
 }
