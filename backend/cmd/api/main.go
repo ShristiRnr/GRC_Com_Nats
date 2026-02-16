@@ -38,8 +38,7 @@ func main() {
 
 	natsBroker, err := broker.NewNATSBroker(cfg.NATSURL)
 	if err != nil {
-		// This should not happen with our resilient NewNATSBroker, but safety first
-		log.Printf("Warning: NATS setup failed: %v", err)
+		log.Fatalf("Fatal: cannot connect to NATS JetStream: %v", err)
 	}
 	defer natsBroker.Close()
 
