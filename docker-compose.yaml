@@ -3,7 +3,7 @@ services:
     image: postgres:15-alpine
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=12345
+      - POSTGRES_PASSWORD=shristi
       - POSTGRES_DB=grc_db
     ports:
       - "5435:5432"
@@ -17,9 +17,12 @@ services:
 
   nats:
     image: nats:latest
+    command: ["-js"]
     ports:
       - "4222:4222"
       - "8222:8222"
+    volumes:
+      - nats_data:/data
 
   api:
     build:
@@ -29,10 +32,10 @@ services:
     ports:
       - "8081:8081"
     environment:
-      - DB_URL=postgresql://postgres:12345@db:5432/grc_db?sslmode=disable
+      - DB_URL=postgresql://postgres:shristi@db:5432/grc_db?sslmode=disable
       - SERVER_ADDR=0.0.0.0:8081
       - NATS_URL=nats://nats:4222
-      - TOKEN_SECRET=25381ce024479e390c9b68a416a24694
+      - TOKEN_SECRET=25381ce024479e390c9b68a416a2469425381ce024479e390c9b68a416a24694
       - TOKEN_DURATION=24h
       - REFRESH_TOKEN_DURATION=168h
       - FRONTEND_URL=http://localhost
@@ -54,9 +57,9 @@ services:
       dockerfile: Dockerfile
     command: [ "/app/worker" ]
     environment:
-      - DB_URL=postgresql://postgres:12345@db:5432/grc_db?sslmode=disable
+      - DB_URL=postgresql://postgres:shristi@db:5432/grc_db?sslmode=disable
       - NATS_URL=nats://nats:4222
-      - TOKEN_SECRET=25381ce024479e390c9b68a416a24694
+      - TOKEN_SECRET=25381ce024479e390c9b68a416a2469425381ce024479e390c9b68a416a24694
       - TOKEN_DURATION=24h
       - REFRESH_TOKEN_DURATION=168h
       - FRONTEND_URL=http://localhost
@@ -93,5 +96,6 @@ services:
 
 volumes:
   postgres_data:
+  nats_data:
 
 

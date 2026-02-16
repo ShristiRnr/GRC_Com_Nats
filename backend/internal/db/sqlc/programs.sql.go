@@ -17,7 +17,7 @@ INSERT INTO program_frameworks (
 ) VALUES (
   $1, $2
 )
-RETURNING id, program_id, framework_id, created_at
+RETURNING id, program_id, framework_id, created_at, org_id
 `
 
 type AddFrameworkToProgramParams struct {
@@ -33,6 +33,7 @@ func (q *Queries) AddFrameworkToProgram(ctx context.Context, arg AddFrameworkToP
 		&i.ProgramID,
 		&i.FrameworkID,
 		&i.CreatedAt,
+		&i.OrgID,
 	)
 	return i, err
 }
@@ -71,7 +72,7 @@ INSERT INTO programs (
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7, $8
 )
-RETURNING id, name, description, type, status, start_date, end_date, progress, created_by, created_at, updated_at
+RETURNING id, name, description, type, status, start_date, end_date, progress, created_by, created_at, updated_at, org_id
 `
 
 type CreateProgramParams struct {
@@ -109,12 +110,13 @@ func (q *Queries) CreateProgram(ctx context.Context, arg CreateProgramParams) (P
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OrgID,
 	)
 	return i, err
 }
 
 const getProgram = `-- name: GetProgram :one
-SELECT id, name, description, type, status, start_date, end_date, progress, created_by, created_at, updated_at FROM programs
+SELECT id, name, description, type, status, start_date, end_date, progress, created_by, created_at, updated_at, org_id FROM programs
 WHERE id = $1 LIMIT 1
 `
 
@@ -133,12 +135,13 @@ func (q *Queries) GetProgram(ctx context.Context, id pgtype.UUID) (Program, erro
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OrgID,
 	)
 	return i, err
 }
 
 const listPrograms = `-- name: ListPrograms :many
-SELECT id, name, description, type, status, start_date, end_date, progress, created_by, created_at, updated_at FROM programs
+SELECT id, name, description, type, status, start_date, end_date, progress, created_by, created_at, updated_at, org_id FROM programs
 ORDER BY start_date DESC
 `
 
@@ -163,6 +166,7 @@ func (q *Queries) ListPrograms(ctx context.Context) ([]Program, error) {
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.OrgID,
 		); err != nil {
 			return nil, err
 		}

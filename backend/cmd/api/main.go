@@ -9,6 +9,7 @@ import (
 	"grc-compil/backend/internal/broker"
 	"grc-compil/backend/internal/config"
 	db "grc-compil/backend/internal/db/sqlc"
+	"grc-compil/backend/internal/service/maintenance"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -32,7 +33,7 @@ func main() {
 	}
 
 	log.Println("Connected to Database successfully")
-	store = db.New(connPool)
+	store = db.NewStore(connPool)
 	defer connPool.Close()
 
 	natsBroker, err := broker.NewNATSBroker(cfg.NATSURL)
@@ -42,7 +43,14 @@ func main() {
 	}
 	defer natsBroker.Close()
 
-	r := router.SetupRouter(store, natsBroker, cfg)
+	r, err := router.SetupRouter(store, natsBroker, cfg)
+	if err != nil {
+		log.Fatalf("Fatal: failed to setup router: %v", err)
+	}
+
+	// Start background maintenance service
+	maintenanceSvc := maintenance.NewMaintenanceService(store, cfg.AuditLogRetentionDays)
+	go maintenanceSvc.Start(context.Background())
 
 	log.Printf("Starting API server on %s", cfg.ServerAddr)
 	if err := http.ListenAndServe(cfg.ServerAddr, r); err != nil {

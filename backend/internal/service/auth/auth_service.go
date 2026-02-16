@@ -7,8 +7,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"grc-compil/backend/internal/db/sqlc"
+	"grc-compil/backend/internal/service/audit"
 	"grc-compil/backend/internal/util"
 )
 
@@ -36,129 +38,288 @@ type AuthService interface {
 }
 
 type authService struct {
-	store                db.Querier
+	store                db.Store
 	tokenMaker           util.TokenMaker
+	audit                audit.AuditService
 	accessTokenDuration  time.Duration
 	refreshTokenDuration time.Duration
+	maxSessions          int
+	bcryptCost           int
+	dummyHash           string
+	superAdminRole       string
 }
 
 func NewAuthService(
-	store db.Querier, 
+	store db.Store, 
 	tokenMaker util.TokenMaker, 
+	audit audit.AuditService,
 	accessTokenDuration time.Duration,
 	refreshTokenDuration time.Duration,
+	maxSessions int,
+	bcryptCost int,
+	superAdminRole string,
 ) AuthService {
+	// SECURITY: Pre-generate dummy hash at startup to prevent timing attacks.
+	// This ensures dummy comparison has the same cost as real comparison.
+	dummyHash, _ := util.HashPassword("dummy-password", bcryptCost)
+
 	return &authService{
 		store:                store,
 		tokenMaker:           tokenMaker,
+		audit:                audit,
 		accessTokenDuration:  accessTokenDuration,
 		refreshTokenDuration: refreshTokenDuration,
+		maxSessions:          maxSessions,
+		bcryptCost:           bcryptCost,
+		dummyHash:            dummyHash,
+		superAdminRole:       superAdminRole,
 	}
 }
 
 func (s *authService) Login(ctx context.Context, identifier, password string, userAgent, clientIP string) (*LoginResponse, error) {
+	if identifier == "" || password == "" {
+		return nil, errors.New("identifier and password are required")
+	}
+
 	// Try lookup by username first
 	user, err := s.store.GetUserByUsername(ctx, identifier)
 	if err != nil {
 		// If username fails, try lookup by email
 		user, err = s.store.GetUserByEmail(ctx, identifier)
 		if err != nil {
+			fmt.Printf("Auth fail: user not found '%s' from %s\n", identifier, clientIP)
+			s.audit.LogEvent(ctx, nil, nil, "auth.login_failure", map[string]interface{}{"reason": "user_not_found", "identifier": identifier}, clientIP, userAgent)
 			return nil, ErrInvalidCredentials
 		}
 	}
 
-	err = util.CheckPassword(password, user.PasswordHash)
+	// SECURITY: Constant time password comparison even if user not found.
+	// This prevents username enumeration through timing differences.
+	var passwordHash string
+	if user.PasswordHash != "" {
+		passwordHash = user.PasswordHash
+	}
+
+	err = util.CheckPasswordWithTimingProtection(password, passwordHash, s.dummyHash)
 	if err != nil {
+		fmt.Printf("Auth fail: password mismatch or user not found for '%s' from %s\n", identifier, clientIP)
+		s.audit.LogEvent(ctx, &user.ID, nil, "auth.login_failure", map[string]interface{}{"reason": "invalid_credentials"}, clientIP, userAgent)
 		return nil, ErrInvalidCredentials
 	}
 
 	// Check if email is verified
 	if !user.EmailVerified {
-		return nil, errors.New("email not verified, please check your inbox")
+		fmt.Printf("Auth fail: email not verified for user %s from %s\n", user.Email, clientIP)
+		s.audit.LogEvent(ctx, &user.ID, nil, "auth.login_failure", map[string]interface{}{"reason": "email_not_verified"}, clientIP, userAgent)
+		return nil, ErrInvalidCredentials // Generic for client
 	}
 
 	// Convert pgtype.UUID to string for token
 	orgIDStr := ""
 	if user.OrgID.Valid {
-		orgIDStr = fmt.Sprintf("%x-%x-%x-%x-%x", user.OrgID.Bytes[0:4], user.OrgID.Bytes[4:6], user.OrgID.Bytes[6:8], user.OrgID.Bytes[8:10], user.OrgID.Bytes[10:16])
+		orgIDStr = util.UUIDToString(user.OrgID.Bytes)
 	}
 
-	accessToken, accessPayload, err := s.tokenMaker.CreateToken(
-		strconv.FormatInt(user.ID, 10),
-		orgIDStr,
-		user.Role,
-		user.Email,
-		s.accessTokenDuration,
-	)
-	if err != nil {
-		return nil, err
-	}
+	var loginRes *LoginResponse
+	err = s.store.ExecTx(ctx, func(q *db.Queries) error {
+		// 1. Enforce session limits
+		// Count active sessions with lock to prevent race condition
+		sessions, err := q.ListSessionsForUpdate(ctx, user.ID)
+		if err != nil {
+			return err
+		}
 
-	refreshToken, refreshPayload, err := s.tokenMaker.CreateToken(
-		strconv.FormatInt(user.ID, 10),
-		orgIDStr,
-		user.Role,
-		user.Email,
-		s.refreshTokenDuration,
-	)
-	if err != nil {
-		return nil, err
-	}
+		if len(sessions) >= s.maxSessions {
+			// Evict oldest session
+			err = q.DeleteOldestSession(ctx, user.ID)
+			if err != nil {
+				return err
+			}
+			s.audit.LogEvent(ctx, &user.ID, &orgIDStr, "auth.session_evicted", map[string]interface{}{"evicted_session_id": sessions[0].ID}, clientIP, userAgent)
+		}
 
-	_, err = s.store.CreateSession(ctx, db.CreateSessionParams{
-		UserID:       user.ID,
-		RefreshToken: refreshToken,
-		UserAgent:    userAgent,
-		ClientIp:     clientIP,
-		IsBlocked:    false,
-		ExpiresAt:    pgtype.Timestamptz{Time: refreshPayload.ExpiresAt.Time, Valid: true},
+		// 2. Create session record
+		session, err := q.CreateSession(ctx, db.CreateSessionParams{
+			UserID:       user.ID,
+			RefreshToken: "", // Will update this with hash
+			UserAgent:    userAgent,
+			ClientIp:     clientIP,
+			IsBlocked:    false,
+			ExpiresAt:    pgtype.Timestamptz{Time: time.Now().Add(s.refreshTokenDuration), Valid: true},
+		})
+		if err != nil {
+			return err
+		}
+
+		// 2. Generate tokens with session ID
+		var sessionID uuid.UUID
+		copy(sessionID[:], session.ID.Bytes[:])
+
+		accessToken, accessPayload, err := s.tokenMaker.CreateToken(
+			strconv.FormatInt(user.ID, 10),
+			orgIDStr,
+			user.Email,
+			sessionID,
+			s.accessTokenDuration,
+		)
+		if err != nil {
+			return err
+		}
+
+		refreshToken, refreshPayload, err := s.tokenMaker.CreateToken(
+			strconv.FormatInt(user.ID, 10),
+			orgIDStr,
+			user.Email,
+			sessionID,
+			s.refreshTokenDuration,
+		)
+		if err != nil {
+			return err
+		}
+
+		// SECURITY: Hash refresh token before storage
+		hashedRefreshToken, err := util.HashRefreshToken(refreshToken)
+		if err != nil {
+			return err
+		}
+
+		// 3. Update session with hashed refresh token
+		_, err = q.UpdateSessionRefreshToken(ctx, db.UpdateSessionRefreshTokenParams{
+			ID:           session.ID,
+			RefreshToken: hashedRefreshToken,
+		})
+		if err != nil {
+			return err
+		}
+
+		loginRes = &LoginResponse{
+			AccessToken:         accessToken,
+			AccessTokenPayload:  accessPayload,
+			RefreshToken:        refreshToken,
+			RefreshTokenPayload: refreshPayload,
+			User:                &user,
+		}
+		return nil
 	})
+
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("login failed: %w", err)
 	}
 
-	return &LoginResponse{
-		AccessToken:         accessToken,
-		AccessTokenPayload:  accessPayload,
-		RefreshToken:        refreshToken,
-		RefreshTokenPayload: refreshPayload,
-		User:                &user,
-	}, nil
+	s.audit.LogEvent(ctx, &user.ID, &orgIDStr, "auth.login_success", nil, clientIP, userAgent)
+	return loginRes, nil
 }
 
 func (s *authService) Refresh(ctx context.Context, refreshToken string, userAgent, clientIP string) (*LoginResponse, error) {
+	if refreshToken == "" {
+		return nil, errors.New("refresh token is required")
+	}
+
 	refreshPayload, err := s.tokenMaker.VerifyToken(refreshToken)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid refresh token: %w", err)
 	}
 
-	// In a real production app, we would look up the session by refreshPayload.ID
-	// But our sessions table uses a random UUID as primary key, and we didn't store the session ID in the token.
-	// Let's assume we lookup by token string for now or better, update the token to include session ID if needed.
-	// For simplicity, let's just verify the user exists and the token is valid.
-	
-	userID, _ := strconv.ParseInt(refreshPayload.UserID, 10, 64)
-	user, err := s.store.GetUser(ctx, userID)
+	var sessionID pgtype.UUID
+	copy(sessionID.Bytes[:], refreshPayload.SessionID[:])
+	sessionID.Valid = true
+
+	var refreshRes *LoginResponse
+	err = s.store.ExecTx(ctx, func(q *db.Queries) error {
+		// SECURITY: Row-level lock to prevent race conditions during rotation
+		session, err := q.GetSessionForUpdate(ctx, sessionID)
+		if err != nil {
+			fmt.Printf("Refresh fail: session not found for ID %v from %s\n", sessionID, clientIP)
+			return ErrInvalidCredentials
+		}
+
+		if session.IsBlocked {
+			fmt.Printf("Refresh fail: blocked session %v from %s\n", sessionID, clientIP)
+			return ErrInvalidCredentials
+		}
+
+		// SECURITY: Use bcrypt to check hashed refresh token
+		err = util.CheckRefreshToken(refreshToken, session.RefreshToken)
+		if err != nil {
+			// This happens if an old token is reused. Potential attack.
+			// Block the session immediately.
+			_, _ = q.UpdateSessionBlock(ctx, db.UpdateSessionBlockParams{
+				ID:        session.ID,
+				IsBlocked: true,
+			})
+			fmt.Printf("REUSE DETECTED: session %v blocked due to token mismatch from %s\n", sessionID, clientIP)
+			s.audit.LogEvent(ctx, &session.UserID, nil, "auth.token_reuse_detected", map[string]interface{}{"session_id": sessionID}, clientIP, userAgent)
+			return ErrInvalidCredentials
+		}
+
+		if time.Now().After(session.ExpiresAt.Time) {
+			fmt.Printf("Refresh fail: expired session %v from %s\n", sessionID, clientIP)
+			return ErrInvalidCredentials
+		}
+
+		user, err := q.GetUser(ctx, session.UserID)
+		if err != nil {
+			return err
+		}
+
+		// Convert pgtype.UUID to string for token
+		orgIDStr := ""
+		if user.OrgID.Valid {
+			orgIDStr = util.UUIDToString(user.OrgID.Bytes)
+		}
+
+		// Generate new tokens
+		accessToken, accessPayload, err := s.tokenMaker.CreateToken(
+			strconv.FormatInt(user.ID, 10),
+			orgIDStr,
+			user.Email,
+			refreshPayload.SessionID,
+			s.accessTokenDuration,
+		)
+		if err != nil {
+			return err
+		}
+
+		newRefreshToken, newRefreshPayload, err := s.tokenMaker.CreateToken(
+			strconv.FormatInt(user.ID, 10),
+			orgIDStr,
+			user.Email,
+			refreshPayload.SessionID,
+			s.refreshTokenDuration,
+		)
+		if err != nil {
+			return err
+		}
+
+		// Hash new refresh token (Rotation)
+		hashedNewRefreshToken, err := util.HashRefreshToken(newRefreshToken)
+		if err != nil {
+			return err
+		}
+
+		_, err = q.UpdateSessionRefreshToken(ctx, db.UpdateSessionRefreshTokenParams{
+			ID:           session.ID,
+			RefreshToken: hashedNewRefreshToken,
+		})
+		if err != nil {
+			return err
+		}
+
+		refreshRes = &LoginResponse{
+			AccessToken:         accessToken,
+			AccessTokenPayload:  accessPayload,
+			RefreshToken:        newRefreshToken,
+			RefreshTokenPayload: newRefreshPayload,
+			User:                &user,
+		}
+		return nil
+	})
+
 	if err != nil {
-		return nil, err
+		return refreshRes, err
 	}
 
-	accessToken, accessPayload, err := s.tokenMaker.CreateToken(
-		strconv.FormatInt(user.ID, 10),
-		user.OrgID.String(),
-		user.Role,
-		user.Email,
-		s.accessTokenDuration,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &LoginResponse{
-		AccessToken:        accessToken,
-		AccessTokenPayload: accessPayload,
-		User:               &user,
-	}, nil
+	return refreshRes, nil
 }
 
 func (s *authService) Me(ctx context.Context, userID int64) (*db.User, error) {
@@ -170,5 +331,5 @@ func (s *authService) Me(ctx context.Context, userID int64) (*db.User, error) {
 }
 
 func (s *authService) IsSuperAdmin(user *db.User) bool {
-	return user.Role == "super_admin"
+	return user.Role == s.superAdminRole
 }

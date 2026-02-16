@@ -11,6 +11,7 @@ import (
 type EmailService interface {
 	SendVerificationEmail(to, username, token string) error
 	SendWelcomeEmail(to, username string) error
+	SendNotificationEmail(to, title, message string) error
 }
 
 type emailService struct {
@@ -58,6 +59,14 @@ func (s *emailService) SendWelcomeEmail(to, username string) error {
 	subject := "Welcome to GRC Compliance!"
 	htmlBody := s.getWelcomeEmailHTML(username)
 	textBody := s.getWelcomeEmailText(username)
+	
+	return s.sendEmail(to, subject, htmlBody, textBody)
+}
+
+func (s *emailService) SendNotificationEmail(to, title, message string) error {
+	subject := "Notification: " + title
+	htmlBody := s.getNotificationEmailHTML(title, message)
+	textBody := message
 	
 	return s.sendEmail(to, subject, htmlBody, textBody)
 }
@@ -225,4 +234,42 @@ Thank you for joining us!
 
 © 2026 GRC Compliance System. All rights reserved.
 `, username)
+}
+
+func (s *emailService) getNotificationEmailHTML(title, message string) string {
+	tmpl := `
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #4a5568; color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0; }
+        .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e2e8f0; }
+        .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>{{.Title}}</h2>
+        </div>
+        <div class="content">
+            <p>{{.Message}}</p>
+        </div>
+        <div class="footer">
+            <p>© 2026 GRC Compliance System. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>
+`
+	t := template.Must(template.New("notif").Parse(tmpl))
+	var buf bytes.Buffer
+	t.Execute(&buf, map[string]string{
+		"Title":   title,
+		"Message": message,
+	})
+	
+	return buf.String()
 }

@@ -12,10 +12,12 @@ import (
 
 type Querier interface {
 	AddFrameworkToProgram(ctx context.Context, arg AddFrameworkToProgramParams) (ProgramFramework, error)
+	AddPermissionToRole(ctx context.Context, arg AddPermissionToRoleParams) error
 	AddScopeToProgram(ctx context.Context, arg AddScopeToProgramParams) (ProgramScope, error)
 	AssignTaskActors(ctx context.Context, arg AssignTaskActorsParams) (Task, error)
 	CreateAsset(ctx context.Context, arg CreateAssetParams) (Asset, error)
 	CreateAssetControl(ctx context.Context, arg CreateAssetControlParams) (AssetControl, error)
+	CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) (AuditLog, error)
 	CreateCategory(ctx context.Context, arg CreateCategoryParams) (ControlCategory, error)
 	CreateControl(ctx context.Context, arg CreateControlParams) (Control, error)
 	CreateControlEvidence(ctx context.Context, arg CreateControlEvidenceParams) (ControlEvidence, error)
@@ -23,10 +25,13 @@ type Querier interface {
 	CreateDomain(ctx context.Context, arg CreateDomainParams) (ControlDomain, error)
 	CreateEvidence(ctx context.Context, arg CreateEvidenceParams) (Evidence, error)
 	CreateFramework(ctx context.Context, arg CreateFrameworkParams) (Framework, error)
+	CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error)
 	CreateOrganization(ctx context.Context, name string) (Organization, error)
+	CreatePermission(ctx context.Context, arg CreatePermissionParams) (Permission, error)
 	CreateProgram(ctx context.Context, arg CreateProgramParams) (Program, error)
 	CreateRisk(ctx context.Context, arg CreateRiskParams) (Risk, error)
 	CreateRiskControl(ctx context.Context, arg CreateRiskControlParams) (RiskControl, error)
+	CreateRole(ctx context.Context, arg CreateRoleParams) (Role, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
@@ -34,30 +39,45 @@ type Querier interface {
 	DeleteAsset(ctx context.Context, id pgtype.UUID) error
 	DeleteAssetControl(ctx context.Context, arg DeleteAssetControlParams) error
 	DeleteControl(ctx context.Context, id pgtype.UUID) error
+	DeleteExpiredSessions(ctx context.Context) error
 	DeleteFramework(ctx context.Context, arg DeleteFrameworkParams) error
+	DeleteOldAuditLogs(ctx context.Context, dollar_1 int32) error
+	DeleteOldestSession(ctx context.Context, userID int64) error
 	DeleteRisk(ctx context.Context, id pgtype.UUID) error
 	DeleteRiskControl(ctx context.Context, arg DeleteRiskControlParams) error
 	DeleteSession(ctx context.Context, id pgtype.UUID) error
 	GetAsset(ctx context.Context, id pgtype.UUID) (Asset, error)
+	GetAuditLog(ctx context.Context, id pgtype.UUID) (AuditLog, error)
 	GetControl(ctx context.Context, id pgtype.UUID) (GetControlRow, error)
 	GetControlStats(ctx context.Context, orgID pgtype.UUID) (GetControlStatsRow, error)
 	GetDepartment(ctx context.Context, id pgtype.UUID) (Department, error)
 	GetFramework(ctx context.Context, arg GetFrameworkParams) (GetFrameworkRow, error)
 	GetOrganization(ctx context.Context, id pgtype.UUID) (Organization, error)
+	GetPermission(ctx context.Context, id pgtype.UUID) (Permission, error)
+	GetPermissionByCode(ctx context.Context, code string) (Permission, error)
 	GetProgram(ctx context.Context, id pgtype.UUID) (Program, error)
 	GetRisk(ctx context.Context, id pgtype.UUID) (Risk, error)
+	GetRole(ctx context.Context, id pgtype.UUID) (Role, error)
+	GetRoleByName(ctx context.Context, name string) (Role, error)
+	GetRolePermissions(ctx context.Context, roleID pgtype.UUID) ([]Permission, error)
 	GetSession(ctx context.Context, id pgtype.UUID) (Session, error)
+	GetSessionForUpdate(ctx context.Context, id pgtype.UUID) (Session, error)
 	GetSystemConfig(ctx context.Context, key string) (SystemConfig, error)
 	GetTask(ctx context.Context, id pgtype.UUID) (Task, error)
+	GetUnreadCount(ctx context.Context, arg GetUnreadCountParams) (int64, error)
 	GetUser(ctx context.Context, id int64) (User, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
 	GetUserByVerificationToken(ctx context.Context, verificationToken pgtype.Text) (User, error)
+	// This assumes users table has a role column that matches a role name or we link them
+	// For now, let's assume we lookup by role name since users table has a role string
+	GetUserPermissions(ctx context.Context, name string) ([]string, error)
 	LinkRiskToControl(ctx context.Context, arg LinkRiskToControlParams) error
 	ListAllControls(ctx context.Context, orgID pgtype.UUID) ([]ListAllControlsRow, error)
 	ListAssetCategories(ctx context.Context) ([]AssetCategory, error)
 	ListAssetTypes(ctx context.Context) ([]AssetType, error)
 	ListAssets(ctx context.Context) ([]Asset, error)
+	ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([]AuditLog, error)
 	// Controls not yet mapped to this specific framework
 	ListAvailableControls(ctx context.Context, arg ListAvailableControlsParams) ([]Control, error)
 	ListCategories(ctx context.Context, orgID pgtype.UUID) ([]ControlCategory, error)
@@ -71,15 +91,22 @@ type Querier interface {
 	ListDomains(ctx context.Context, orgID pgtype.UUID) ([]ControlDomain, error)
 	ListEvidenceByTask(ctx context.Context, taskID pgtype.UUID) ([]Evidence, error)
 	ListFrameworks(ctx context.Context, orgID pgtype.UUID) ([]ListFrameworksRow, error)
+	ListNotificationsByUser(ctx context.Context, arg ListNotificationsByUserParams) ([]Notification, error)
 	ListOrganizations(ctx context.Context) ([]Organization, error)
+	ListPermissions(ctx context.Context) ([]Permission, error)
 	ListPrograms(ctx context.Context) ([]Program, error)
 	ListRiskControls(ctx context.Context, riskID pgtype.UUID) ([]RiskControl, error)
 	ListRisksByOrg(ctx context.Context, orgID pgtype.UUID) ([]Risk, error)
+	ListRoles(ctx context.Context) ([]Role, error)
+	ListSessionsForUpdate(ctx context.Context, userID int64) ([]Session, error)
 	ListTasksByOrg(ctx context.Context, orgID pgtype.UUID) ([]Task, error)
 	ListUsers(ctx context.Context) ([]User, error)
 	ListUsersByOrg(ctx context.Context, orgID pgtype.UUID) ([]User, error)
 	MapAssetControl(ctx context.Context, arg MapAssetControlParams) (AssetControl, error)
 	MapControl(ctx context.Context, arg MapControlParams) (FrameworkControl, error)
+	MarkAllAsRead(ctx context.Context, arg MarkAllAsReadParams) error
+	MarkNotificationAsRead(ctx context.Context, arg MarkNotificationAsReadParams) (Notification, error)
+	RemovePermissionFromRole(ctx context.Context, arg RemovePermissionFromRoleParams) error
 	SetSystemConfig(ctx context.Context, arg SetSystemConfigParams) (SystemConfig, error)
 	UnmapControl(ctx context.Context, arg UnmapControlParams) error
 	UpdateAsset(ctx context.Context, arg UpdateAssetParams) (Asset, error)
@@ -88,6 +115,7 @@ type Querier interface {
 	UpdateFrameworkStatus(ctx context.Context, arg UpdateFrameworkStatusParams) (Framework, error)
 	UpdateRisk(ctx context.Context, arg UpdateRiskParams) (Risk, error)
 	UpdateSessionBlock(ctx context.Context, arg UpdateSessionBlockParams) (Session, error)
+	UpdateSessionRefreshToken(ctx context.Context, arg UpdateSessionRefreshTokenParams) (Session, error)
 	UpdateTaskStatus(ctx context.Context, arg UpdateTaskStatusParams) (Task, error)
 	UpdateVerificationToken(ctx context.Context, arg UpdateVerificationTokenParams) (User, error)
 	UpsertControl(ctx context.Context, arg UpsertControlParams) (Control, error)

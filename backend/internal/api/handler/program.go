@@ -21,22 +21,20 @@ func NewProgramHandler(service program.ProgramService) *ProgramHandler {
 func (h *ProgramHandler) CreateProgram(c *gin.Context) {
 	var req program.CreateProgramRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		HandleBindingError(c, err)
 		return
 	}
 
 	payload := middleware.GetUserContext(c)
-	var userID int64
 	if payload == nil {
-		// Fallback for development if no token - DUMMY TOKEN LOGIC
-		userID = 1
-	} else {
-		userID, _ = strconv.ParseInt(payload.UserID, 10, 64)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized: invalid or expired session"})
+		return
 	}
-
+	
+	userID, _ := strconv.ParseInt(payload.UserID, 10, 64)
 	prog, err := h.service.CreateProgram(c.Request.Context(), req, userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(c, err)
 		return
 	}
 
@@ -46,7 +44,7 @@ func (h *ProgramHandler) CreateProgram(c *gin.Context) {
 func (h *ProgramHandler) ListPrograms(c *gin.Context) {
 	progs, err := h.service.ListPrograms(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, progs)
@@ -55,7 +53,7 @@ func (h *ProgramHandler) ListPrograms(c *gin.Context) {
 func (h *ProgramHandler) ListAssets(c *gin.Context) {
 	assets, err := h.service.ListAssets(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, assets)
@@ -64,7 +62,7 @@ func (h *ProgramHandler) ListAssets(c *gin.Context) {
 func (h *ProgramHandler) ListDepartments(c *gin.Context) {
 	depts, err := h.service.ListDepartments(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, depts)
@@ -73,7 +71,7 @@ func (h *ProgramHandler) ListDepartments(c *gin.Context) {
 func (h *ProgramHandler) ListUsers(c *gin.Context) {
 	users, err := h.service.ListUsers(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, users)

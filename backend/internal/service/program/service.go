@@ -68,6 +68,8 @@ func NewProgramService(store db.Querier) ProgramService {
 const (
 	deptIDStr  = "33333333-3333-3333-3333-333333333333"
 	assetIDStr = "55555555-5555-5555-5555-555555555555"
+	RoleAdmin  = "admin"
+	RoleEditor = "editor"
 )
 
 func (s *programService) CreateProgram(ctx context.Context, req CreateProgramRequest, userID int64) (*db.Program, error) {
@@ -211,7 +213,7 @@ func (s *programService) ListUsers(ctx context.Context) ([]db.User, error) {
 			ID:            1,
 			Username:      "Admin User",
 			Email:         "admin@example.com",
-			Role:          "admin",
+			Role:          RoleAdmin,
 			EmailVerified: true,
 			CreatedAt:     pgtype.Timestamptz{Time: time.Now(), Valid: true},
 		},
@@ -219,7 +221,7 @@ func (s *programService) ListUsers(ctx context.Context) ([]db.User, error) {
 			ID:            2,
 			Username:      "Jane Auditor",
 			Email:         "auditor@example.com",
-			Role:          "editor",
+			Role:          RoleEditor,
 			EmailVerified: true,
 			CreatedAt:     pgtype.Timestamptz{Time: time.Now(), Valid: true},
 		},

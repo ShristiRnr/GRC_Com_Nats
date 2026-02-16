@@ -50,6 +50,7 @@ type AssetControl struct {
 	LastReviewedAt      pgtype.Timestamptz `json:"last_reviewed_at"`
 	CreatedAt           pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	OrgID               pgtype.UUID        `json:"org_id"`
 }
 
 type AssetType struct {
@@ -58,6 +59,17 @@ type AssetType struct {
 	Name        string      `json:"name"`
 	CategoryID  pgtype.UUID `json:"category_id"`
 	Description pgtype.Text `json:"description"`
+}
+
+type AuditLog struct {
+	ID        pgtype.UUID        `json:"id"`
+	UserID    pgtype.Int8        `json:"user_id"`
+	OrgID     pgtype.UUID        `json:"org_id"`
+	EventType string             `json:"event_type"`
+	EventData []byte             `json:"event_data"`
+	IpAddress pgtype.Text        `json:"ip_address"`
+	UserAgent pgtype.Text        `json:"user_agent"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
 type Control struct {
@@ -128,6 +140,7 @@ type Evidence struct {
 	Checksum   string             `json:"checksum"`
 	UploadedBy pgtype.UUID        `json:"uploaded_by"`
 	UploadedAt pgtype.Timestamptz `json:"uploaded_at"`
+	OrgID      pgtype.UUID        `json:"org_id"`
 }
 
 type Framework struct {
@@ -148,10 +161,29 @@ type FrameworkControl struct {
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
+type Notification struct {
+	ID        pgtype.UUID        `json:"id"`
+	UserID    int64              `json:"user_id"`
+	OrgID     pgtype.UUID        `json:"org_id"`
+	Title     string             `json:"title"`
+	Message   string             `json:"message"`
+	Type      string             `json:"type"`
+	Link      pgtype.Text        `json:"link"`
+	IsRead    bool               `json:"is_read"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type Organization struct {
 	ID        pgtype.UUID        `json:"id"`
 	Name      string             `json:"name"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type Permission struct {
+	ID          pgtype.UUID        `json:"id"`
+	Code        string             `json:"code"`
+	Description pgtype.Text        `json:"description"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
 type Policy struct {
@@ -198,6 +230,7 @@ type Program struct {
 	CreatedBy   pgtype.Int8        `json:"created_by"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	OrgID       pgtype.UUID        `json:"org_id"`
 }
 
 type ProgramFramework struct {
@@ -205,6 +238,7 @@ type ProgramFramework struct {
 	ProgramID   pgtype.UUID        `json:"program_id"`
 	FrameworkID pgtype.UUID        `json:"framework_id"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	OrgID       pgtype.UUID        `json:"org_id"`
 }
 
 type ProgramScope struct {
@@ -242,6 +276,18 @@ type RiskControl struct {
 	Effectiveness pgtype.Text        `json:"effectiveness"`
 	Notes         pgtype.Text        `json:"notes"`
 	MappedAt      pgtype.Timestamptz `json:"mapped_at"`
+}
+
+type Role struct {
+	ID          pgtype.UUID        `json:"id"`
+	Name        string             `json:"name"`
+	Description pgtype.Text        `json:"description"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type RolePermission struct {
+	RoleID       pgtype.UUID `json:"role_id"`
+	PermissionID pgtype.UUID `json:"permission_id"`
 }
 
 type Session struct {

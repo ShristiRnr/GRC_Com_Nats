@@ -29,14 +29,14 @@ func (h *ControlHandler) CreateControl(c *gin.Context) {
 
 	var req control.CreateControlRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		HandleBindingError(c, err)
 		return
 	}
 	req.OrgID = orgID
 
 	ctrl, err := h.service.CreateControl(c.Request.Context(), req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, ctrl)
@@ -46,7 +46,7 @@ func (h *ControlHandler) GetControl(ctx *gin.Context) {
 	id := ctx.Param("id")
 	ctrl, err := h.service.GetControl(ctx.Request.Context(), id)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(ctx, err)
 		return
 	}
 	ctx.JSON(http.StatusOK, ctrl)
@@ -57,7 +57,7 @@ func (h *ControlHandler) ListControls(ctx *gin.Context) {
 	if frameworkID != "" {
 		ctrls, err := h.service.ListControls(ctx.Request.Context(), &frameworkID)
 		if err != nil {
-			ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			HandleError(ctx, err)
 			return
 		}
 		ctx.JSON(http.StatusOK, ctrls)
@@ -67,7 +67,7 @@ func (h *ControlHandler) ListControls(ctx *gin.Context) {
 	payload := middleware.GetUserContext(ctx)
 	ctrls, err := h.service.ListControlsAll(ctx.Request.Context(), payload.OrgID)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(ctx, err)
 		return
 	}
 	ctx.JSON(http.StatusOK, ctrls)
@@ -77,13 +77,13 @@ func (h *ControlHandler) UpdateControl(ctx *gin.Context) {
 	id := ctx.Param("id")
 	var req control.UpdateControlRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		HandleBindingError(ctx, err)
 		return
 	}
 
 	ctrl, err := h.service.UpdateControl(ctx.Request.Context(), id, req)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(ctx, err)
 		return
 	}
 	ctx.JSON(http.StatusOK, ctrl)
@@ -92,7 +92,7 @@ func (h *ControlHandler) UpdateControl(ctx *gin.Context) {
 func (h *ControlHandler) DeleteControl(ctx *gin.Context) {
 	id := ctx.Param("id")
 	if err := h.service.DeleteControl(ctx.Request.Context(), id); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(ctx, err)
 		return
 	}
 	ctx.JSON(http.StatusOK, gin.H{"message": "control deleted successfully"})
@@ -102,8 +102,7 @@ func (h *ControlHandler) GetControlStats(ctx *gin.Context) {
 	payload := middleware.GetUserContext(ctx)
 	stats, err := h.service.GetControlStats(ctx.Request.Context(), payload.OrgID)
 	if err != nil {
-		fmt.Printf("GetControlStats error: %v\n", err)
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(ctx, err)
 		return
 	}
 	ctx.JSON(http.StatusOK, stats)
@@ -116,13 +115,13 @@ func (h *ControlHandler) MapControl(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		HandleBindingError(c, err)
 		return
 	}
 
 	for _, cid := range req.ControlIds {
 		if err := h.service.MapControl(c.Request.Context(), frameworkID, cid); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			HandleError(c, err)
 			return
 		}
 	}
@@ -137,13 +136,13 @@ func (h *ControlHandler) UnmapControl(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		HandleBindingError(c, err)
 		return
 	}
 
 	for _, cid := range req.ControlIds {
 		if err := h.service.UnmapControl(c.Request.Context(), frameworkID, cid); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			HandleError(c, err)
 			return
 		}
 	}
@@ -158,11 +157,11 @@ func (h *ControlHandler) LinkAsset(c *gin.Context) {
 		Notes   string `json:"notes"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		HandleBindingError(c, err)
 		return
 	}
 	if err := h.service.LinkAsset(c.Request.Context(), controlID, req.AssetID, req.Notes); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "asset linked successfully"})
@@ -172,7 +171,7 @@ func (h *ControlHandler) UnlinkAsset(c *gin.Context) {
 	controlID := c.Param("id")
 	assetID := c.Param("assetId")
 	if err := h.service.UnlinkAsset(c.Request.Context(), controlID, assetID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "asset unlinked successfully"})
@@ -185,11 +184,11 @@ func (h *ControlHandler) LinkRisk(c *gin.Context) {
 		Notes  string `json:"notes"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		HandleBindingError(c, err)
 		return
 	}
 	if err := h.service.LinkRisk(c.Request.Context(), controlID, req.RiskID, req.Notes); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "risk linked successfully"})
@@ -199,7 +198,7 @@ func (h *ControlHandler) UnlinkRisk(c *gin.Context) {
 	controlID := c.Param("id")
 	riskID := c.Param("riskId")
 	if err := h.service.UnlinkRisk(c.Request.Context(), controlID, riskID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "risk unlinked successfully"})
@@ -209,7 +208,7 @@ func (h *ControlHandler) ListFrameworkControls(ctx *gin.Context) {
 	id := ctx.Param("id")
 	ctrls, err := h.service.ListFrameworkControls(ctx.Request.Context(), id)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(ctx, err)
 		return
 	}
 	ctx.JSON(http.StatusOK, ctrls)
@@ -221,7 +220,7 @@ func (h *ControlHandler) ListAvailableControls(c *gin.Context) {
 
 	ctrls, err := h.service.ListAvailableControls(c.Request.Context(), payload.OrgID, id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, ctrls)
@@ -290,7 +289,7 @@ func (h *ControlHandler) ImportControls(c *gin.Context) {
 
 	stats, err := h.service.ImportControls(c.Request.Context(), payload.OrgID, controls)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(c, err)
 		return
 	}
 

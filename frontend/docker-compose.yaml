@@ -3,7 +3,7 @@ services:
     image: postgres:15-alpine
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=12345
+      - POSTGRES_PASSWORD=shristi
       - POSTGRES_DB=grc_db
     ports:
       - "5435:5432"
@@ -23,7 +23,7 @@ services:
     build:
       context: ./backend
     environment:
-      - DB_URL=postgresql://postgres:12345@db:5432/grc_db?sslmode=disable
+      - DB_URL=postgresql://postgres:shristi@db:5432/grc_db?sslmode=disable
       - NATS_URL=nats://nats:4222
       - SERVER_ADDR=0.0.0.0:8080
       - TOKEN_SECRET=25381ce024479e390c9b68a416a24694
@@ -49,7 +49,7 @@ services:
     build:
       context: ./backend
     environment:
-      - DB_URL=postgresql://postgres:12345@db:5432/grc_db?sslmode=disable
+      - DB_URL=postgresql://postgres:shristi@db:5432/grc_db?sslmode=disable
       - NATS_URL=nats://nats:4222
       - TOKEN_SECRET=25381ce024479e390c9b68a416a24694
       - TOKEN_DURATION=24h

@@ -56,6 +56,31 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 	return i, err
 }
 
+const deleteExpiredSessions = `-- name: DeleteExpiredSessions :exec
+DELETE FROM sessions
+WHERE expires_at < NOW()
+`
+
+func (q *Queries) DeleteExpiredSessions(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, deleteExpiredSessions)
+	return err
+}
+
+const deleteOldestSession = `-- name: DeleteOldestSession :exec
+DELETE FROM sessions
+WHERE id = (
+    SELECT s.id FROM sessions s
+    WHERE s.user_id = $1
+    ORDER BY s.created_at ASC
+    LIMIT 1
+)
+`
+
+func (q *Queries) DeleteOldestSession(ctx context.Context, userID int64) error {
+	_, err := q.db.Exec(ctx, deleteOldestSession, userID)
+	return err
+}
+
 const deleteSession = `-- name: DeleteSession :exec
 DELETE FROM sessions
 WHERE id = $1
@@ -87,6 +112,64 @@ func (q *Queries) GetSession(ctx context.Context, id pgtype.UUID) (Session, erro
 	return i, err
 }
 
+const getSessionForUpdate = `-- name: GetSessionForUpdate :one
+SELECT id, user_id, refresh_token, user_agent, client_ip, is_blocked, expires_at, created_at FROM sessions
+WHERE id = $1 LIMIT 1
+FOR UPDATE
+`
+
+func (q *Queries) GetSessionForUpdate(ctx context.Context, id pgtype.UUID) (Session, error) {
+	row := q.db.QueryRow(ctx, getSessionForUpdate, id)
+	var i Session
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.RefreshToken,
+		&i.UserAgent,
+		&i.ClientIp,
+		&i.IsBlocked,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const listSessionsForUpdate = `-- name: ListSessionsForUpdate :many
+SELECT id, user_id, refresh_token, user_agent, client_ip, is_blocked, expires_at, created_at FROM sessions
+WHERE user_id = $1 AND is_blocked = false
+ORDER BY created_at ASC
+FOR UPDATE
+`
+
+func (q *Queries) ListSessionsForUpdate(ctx context.Context, userID int64) ([]Session, error) {
+	rows, err := q.db.Query(ctx, listSessionsForUpdate, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Session
+	for rows.Next() {
+		var i Session
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.RefreshToken,
+			&i.UserAgent,
+			&i.ClientIp,
+			&i.IsBlocked,
+			&i.ExpiresAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateSessionBlock = `-- name: UpdateSessionBlock :one
 UPDATE sessions
 SET is_blocked = $2
@@ -101,6 +184,34 @@ type UpdateSessionBlockParams struct {
 
 func (q *Queries) UpdateSessionBlock(ctx context.Context, arg UpdateSessionBlockParams) (Session, error) {
 	row := q.db.QueryRow(ctx, updateSessionBlock, arg.ID, arg.IsBlocked)
+	var i Session
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.RefreshToken,
+		&i.UserAgent,
+		&i.ClientIp,
+		&i.IsBlocked,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const updateSessionRefreshToken = `-- name: UpdateSessionRefreshToken :one
+UPDATE sessions
+SET refresh_token = $2
+WHERE id = $1
+RETURNING id, user_id, refresh_token, user_agent, client_ip, is_blocked, expires_at, created_at
+`
+
+type UpdateSessionRefreshTokenParams struct {
+	ID           pgtype.UUID `json:"id"`
+	RefreshToken string      `json:"refresh_token"`
+}
+
+func (q *Queries) UpdateSessionRefreshToken(ctx context.Context, arg UpdateSessionRefreshTokenParams) (Session, error) {
+	row := q.db.QueryRow(ctx, updateSessionRefreshToken, arg.ID, arg.RefreshToken)
 	var i Session
 	err := row.Scan(
 		&i.ID,

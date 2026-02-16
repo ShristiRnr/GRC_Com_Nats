@@ -19,13 +19,13 @@ func NewRiskHandler(service risk.RiskService) *RiskHandler {
 func (h *RiskHandler) CreateRisk(c *gin.Context) {
 	var req risk.CreateRiskRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		HandleBindingError(c, err)
 		return
 	}
 
 	risk, err := h.service.CreateRisk(c.Request.Context(), req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(c, err)
 		return
 	}
 
@@ -41,7 +41,7 @@ func (h *RiskHandler) ListRisks(c *gin.Context) {
 
 	risks, err := h.service.ListRisks(c.Request.Context(), orgID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(c, err)
 		return
 	}
 
@@ -52,7 +52,7 @@ func (h *RiskHandler) GetRisk(c *gin.Context) {
 	id := c.Param("id")
 	risk, err := h.service.GetRisk(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "risk not found"})
+		HandleError(c, err)
 		return
 	}
 
@@ -63,13 +63,13 @@ func (h *RiskHandler) UpdateRisk(c *gin.Context) {
 	id := c.Param("id")
 	var req risk.UpdateRiskRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		HandleBindingError(c, err)
 		return
 	}
 
 	risk, err := h.service.UpdateRisk(c.Request.Context(), id, req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(c, err)
 		return
 	}
 
@@ -79,7 +79,7 @@ func (h *RiskHandler) UpdateRisk(c *gin.Context) {
 func (h *RiskHandler) DeleteRisk(c *gin.Context) {
 	id := c.Param("id")
 	if err := h.service.DeleteRisk(c.Request.Context(), id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(c, err)
 		return
 	}
 
@@ -94,7 +94,7 @@ func (h *RiskHandler) LinkControl(c *gin.Context) {
 	}
 
 	if err := h.service.LinkControl(c.Request.Context(), req); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(c, err)
 		return
 	}
 
@@ -105,7 +105,7 @@ func (h *RiskHandler) ListRiskControls(c *gin.Context) {
 	riskID := c.Param("id")
 	controls, err := h.service.ListRiskControls(c.Request.Context(), riskID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(c, err)
 		return
 	}
 

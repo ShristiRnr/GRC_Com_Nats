@@ -79,8 +79,8 @@ func main() {
 		}
 	}
 
-	// Hash the password
-	hashedPassword, err := util.HashPassword(password)
+	// Hash the password with configured cost
+	hashedPassword, err := util.HashPassword(password, cfg.BcryptCost)
 	if err != nil {
 		log.Fatalf("failed to hash password: %v", err)
 	}

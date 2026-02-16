@@ -68,7 +68,7 @@ INSERT INTO evidence (
     task_id, file_path, file_name, checksum, uploaded_by
 ) VALUES (
     $1, $2, $3, $4, $5
-) RETURNING id, task_id, file_path, file_name, checksum, uploaded_by, uploaded_at
+) RETURNING id, task_id, file_path, file_name, checksum, uploaded_by, uploaded_at, org_id
 `
 
 type CreateEvidenceParams struct {
@@ -96,6 +96,7 @@ func (q *Queries) CreateEvidence(ctx context.Context, arg CreateEvidenceParams) 
 		&i.Checksum,
 		&i.UploadedBy,
 		&i.UploadedAt,
+		&i.OrgID,
 	)
 	return i, err
 }
@@ -200,7 +201,7 @@ func (q *Queries) GetTask(ctx context.Context, id pgtype.UUID) (Task, error) {
 }
 
 const listEvidenceByTask = `-- name: ListEvidenceByTask :many
-SELECT id, task_id, file_path, file_name, checksum, uploaded_by, uploaded_at FROM evidence
+SELECT id, task_id, file_path, file_name, checksum, uploaded_by, uploaded_at, org_id FROM evidence
 WHERE task_id = $1
 `
 
@@ -221,6 +222,7 @@ func (q *Queries) ListEvidenceByTask(ctx context.Context, taskID pgtype.UUID) ([
 			&i.Checksum,
 			&i.UploadedBy,
 			&i.UploadedAt,
+			&i.OrgID,
 		); err != nil {
 			return nil, err
 		}

@@ -10,7 +10,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"grc-compil/backend/internal/broker"
 	"grc-compil/backend/internal/config"
+	db "grc-compil/backend/internal/db/sqlc"
 	"grc-compil/backend/internal/service/email"
+	"grc-compil/backend/internal/service/notification"
 	"grc-compil/backend/internal/worker/processor"
 )
 
@@ -42,15 +44,9 @@ func main() {
 		cfg.FrontendURL,
 	)
 
-	p := processor.NewProcessor(connPool, natsBroker, emailService)
+	store := db.NewStore(connPool)
+	notificationService := notification.NewNotificationService(store)
+
+	p := processor.NewProcessor(connPool, natsBroker, emailService, notificationService)
 	p.Start()
-
-	log.Println("Worker started and listening for events...")
-
-	// Wait for termination signal
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-
-	log.Println("Worker shutting down...")
 }

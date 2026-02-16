@@ -730,7 +730,7 @@ INSERT INTO asset_controls (
 ) VALUES (
   $1, $2, $3, $4
 )
-RETURNING id, asset_id, control_id, coverage_status, implementation_notes, last_reviewed_at, created_at, updated_at
+RETURNING id, asset_id, control_id, coverage_status, implementation_notes, last_reviewed_at, created_at, updated_at, org_id
 `
 
 type MapAssetControlParams struct {
@@ -757,6 +757,7 @@ func (q *Queries) MapAssetControl(ctx context.Context, arg MapAssetControlParams
 		&i.LastReviewedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OrgID,
 	)
 	return i, err
 }

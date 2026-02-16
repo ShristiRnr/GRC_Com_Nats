@@ -19,7 +19,7 @@ func NewPolicyHandler(service policy.PolicyService) *PolicyHandler {
 func (h *PolicyHandler) ListPolicies(c *gin.Context) {
 	policies, err := h.service.ListPolicies(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, policies)
@@ -28,13 +28,13 @@ func (h *PolicyHandler) ListPolicies(c *gin.Context) {
 func (h *PolicyHandler) CreatePolicy(c *gin.Context) {
 	var req policy.CreatePolicyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		HandleBindingError(c, err)
 		return
 	}
 
 	p, err := h.service.CreatePolicy(c.Request.Context(), req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, p)
@@ -44,7 +44,7 @@ func (h *PolicyHandler) GetPolicy(c *gin.Context) {
 	id := c.Param("id")
 	p, err := h.service.GetPolicy(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		HandleError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, p)
@@ -53,7 +53,7 @@ func (h *PolicyHandler) GetPolicy(c *gin.Context) {
 func (h *PolicyHandler) DeletePolicy(c *gin.Context) {
 	id := c.Param("id")
 	if err := h.service.DeletePolicy(c.Request.Context(), id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Policy deleted"})
@@ -68,7 +68,7 @@ func (h *PolicyHandler) CreateClause(c *gin.Context) {
 
 	clause, err := h.service.CreateClause(c.Request.Context(), req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, clause)
@@ -78,7 +78,7 @@ func (h *PolicyHandler) ListClauses(c *gin.Context) {
 	id := c.Param("id")
 	clauses, err := h.service.ListClauses(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, clauses)

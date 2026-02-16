@@ -19,7 +19,7 @@ func NewDepartmentHandler(departmentSvc department.DepartmentService) *Departmen
 func (h *DepartmentHandler) ListDepartments(c *gin.Context) {
 	departments, err := h.departmentSvc.ListDepartments(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, departments)
@@ -29,7 +29,7 @@ func (h *DepartmentHandler) GetDepartment(c *gin.Context) {
 	id := c.Param("id")
 	dept, err := h.departmentSvc.GetDepartment(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		HandleError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, dept)

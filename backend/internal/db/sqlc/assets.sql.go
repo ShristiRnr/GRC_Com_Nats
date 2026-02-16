@@ -79,7 +79,7 @@ INSERT INTO asset_controls (
     asset_id, control_id, implementation_notes, coverage_status
 ) VALUES (
     $1, $2, $3, $4
-) RETURNING id, asset_id, control_id, coverage_status, implementation_notes, last_reviewed_at, created_at, updated_at
+) RETURNING id, asset_id, control_id, coverage_status, implementation_notes, last_reviewed_at, created_at, updated_at, org_id
 `
 
 type CreateAssetControlParams struct {
@@ -106,6 +106,7 @@ func (q *Queries) CreateAssetControl(ctx context.Context, arg CreateAssetControl
 		&i.LastReviewedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OrgID,
 	)
 	return i, err
 }
